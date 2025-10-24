@@ -1,0 +1,106 @@
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+
+import java.util.Arrays;
+
+@TeleOp(name = "Mecanum TeleOp (Safe Fixed)", group = "Drive")
+public class MecanumTeleOpSafeFixed extends LinearOpMode {
+
+    private DcMotor frontLeft, frontRight, backLeft, backRight;
+
+    private static final String[] FL_NAMES = {"frontLeft", "leftFront", "lf", "FL", "FrontLeft", "Left_Front"};
+    private static final String[] FR_NAMES = {"frontRight", "rightFront", "rf", "FR", "FrontRight", "Right_Front"};
+    private static final String[] BL_NAMES = {"backLeft", "leftBack", "lb", "BL", "BackLeft", "Left_Back", "rearLeft"};
+    private static final String[] BR_NAMES = {"backRight", "rightBack", "rb", "BR", "BackRight", "Right_Back", "rearRight"};
+
+    @Override
+    public void runOpMode() throws InterruptedException {
+
+        frontLeft  = findMotor(FL_NAMES);
+        frontRight = findMotor(FR_NAMES);
+        backLeft   = findMotor(BL_NAMES);
+        backRight  = findMotor(BR_NAMES);
+
+        if (!allFound(frontLeft, frontRight, backLeft, backRight)) {
+            telemetry.addLine("❌ Не все моторы найдены. Проверь имена в конфигурации Robot Controller.");
+            telemetry.addData("Доступные моторы", listAllDcMotors());
+            telemetry.addData("Ожидаемые FL", Arrays.toString(FL_NAMES));
+            telemetry.addData("Ожидаемые FR", Arrays.toString(FR_NAMES));
+            telemetry.addData("Ожидаемые BL", Arrays.toString(BL_NAMES));
+            telemetry.addData("Ожидаемые BR", Arrays.toString(BR_NAMES));
+            telemetry.update();
+            sleep(8000);
+            return;
+        }
+
+        frontRight.setDirection(DcMotorSimple.Direction.REVERSE);
+        backRight.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        for (DcMotor m : new DcMotor[]{frontLeft, frontRight, backLeft, backRight}) {
+            m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        }
+
+        telemetry.addLine("✅ TeleOp готов. Нажми INIT → PLAY");
+        telemetry.update();
+
+        waitForStart();
+
+        while (opModeIsActive()) {
+            double y  = -gamepad1.left_stick_y;  // вперёд/назад
+            double x  =  gamepad1.left_stick_x;  // стрейф
+            double rx =  gamepad1.right_stick_x; // поворот
+
+            double fl = y + x + rx;
+            double bl = y - x + rx;
+            double fr = y - x - rx;
+            double br = y + x - rx;
+
+            double max = Math.max(1.0,
+                    Math.max(Math.abs(fl), Math.max(Math.abs(bl), Math.max(Math.abs(fr), Math.abs(br)))));
+            fl /= max; bl /= max; fr /= max; br /= max;
+
+            frontLeft.setPower(fl);
+            backLeft.setPower(bl);
+            frontRight.setPower(fr);
+            backRight.setPower(br);
+
+            telemetry.addData("FL/FR", "%.2f / %.2f", fl, fr);
+            telemetry.addData("BL/BR", "%.2f / %.2f", bl, br);
+            telemetry.update();
+        }
+    }
+
+    private DcMotor findMotor(String[] candidates) {
+        for (String name : candidates) {
+            try {
+                DcMotor m = hardwareMap.get(DcMotor.class, name);
+                if (m != null) {
+                    telemetry.addData("✔ найден мотор", name);
+                    telemetry.update();
+                    return m;
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    private boolean allFound(DcMotor... motors) {
+        for (DcMotor m : motors) if (m == null) return false;
+        return true;
+    }
+
+    /** Исправлено: теперь корректно возвращает список имён моторов */
+    private String listAllDcMotors() {
+        StringBuilder sb = new StringBuilder();
+        for (DcMotor m : hardwareMap.getAll(DcMotor.class)) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(hardwareMap.getNamesOf(m)); // корректно достаёт имена
+        }
+        return sb.length() == 0 ? "(пусто)" : sb.toString();
+    }
+}
